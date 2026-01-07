@@ -14,6 +14,7 @@ import {
   X,
   LogOut,
   ChevronDown,
+  UserCircle,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
@@ -25,13 +26,20 @@ interface NavItem {
   roles?: string[];
 }
 
-const mainNavItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
-  { href: '/employees', label: 'Employees', icon: <Users size={20} /> },
-  { href: '/training', label: 'Training Records', icon: <GraduationCap size={20} /> },
+// Employee-only navigation
+const employeeNavItems: NavItem[] = [
+  { href: '/my-dashboard', label: 'My Dashboard', icon: <UserCircle size={20} />, roles: ['employee'] },
 ];
 
+// Admin navigation (rig_admin and super_admin)
 const adminNavItems: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['rig_admin', 'super_admin'] },
+  { href: '/employees', label: 'Employees', icon: <Users size={20} />, roles: ['rig_admin', 'super_admin'] },
+  { href: '/training', label: 'Training Records', icon: <GraduationCap size={20} />, roles: ['rig_admin', 'super_admin'] },
+];
+
+// Super admin only navigation
+const superAdminNavItems: NavItem[] = [
   { href: '/admin/rigs', label: 'Manage Rigs', icon: <Building2 size={20} />, roles: ['super_admin'] },
   { href: '/settings', label: 'Settings', icon: <Settings size={20} />, roles: ['super_admin', 'rig_admin'] },
 ];
@@ -67,9 +75,21 @@ export function Sidebar() {
     item => !item.roles || item.roles.includes(userRole)
   );
 
+  const filteredSuperAdminItems = superAdminNavItems.filter(
+    item => !item.roles || item.roles.includes(userRole)
+  );
+
+  // Get main nav items based on role
+  const mainNavItems = userRole === 'employee' 
+    ? employeeNavItems 
+    : filteredAdminItems;
+
   const displayName = userMetadata.firstName && userMetadata.lastName
     ? `${userMetadata.firstName} ${userMetadata.lastName}`
     : user?.email?.split('@')[0] || 'User';
+
+  // Logo href based on role
+  const logoHref = userRole === 'employee' ? '/my-dashboard' : '/dashboard';
 
   return (
     <>
@@ -105,7 +125,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <Link href="/dashboard" className="sidebar-logo">
+          <Link href={logoHref} className="sidebar-logo">
             <Shield size={24} />
             <span>RTMS</span>
           </Link>
@@ -127,10 +147,10 @@ export function Sidebar() {
             ))}
           </div>
 
-          {filteredAdminItems.length > 0 && (
+          {filteredSuperAdminItems.length > 0 && (
             <div className="nav-section">
               <div className="nav-section-title">Administration</div>
-              {filteredAdminItems.map(item => (
+              {filteredSuperAdminItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}

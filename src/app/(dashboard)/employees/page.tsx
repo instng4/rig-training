@@ -19,7 +19,8 @@ interface EmployeeWithStatus extends Employee {
 }
 
 export default function EmployeesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, userMetadata, loading: authLoading } = useAuth();
+  const userRole = userMetadata.role || 'employee';
   const searchParams = useSearchParams();
   const [employees, setEmployees] = useState<EmployeeWithStatus[]>([]);
   const [rigs, setRigs] = useState<Rig[]>([]);
@@ -27,18 +28,35 @@ export default function EmployeesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRig, setSelectedRig] = useState<string>(searchParams.get('rig') || '');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [adminRigId, setAdminRigId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
       
       try {
-        // Fetch rigs
-        const { data: rigsData } = await supabase
-          .from('rigs')
-          .select('*')
-          .order('name');
-        
+        // For rig_admin, get their assigned rig first
+        let rigFilter: string | null = null;
+        if (userRole === 'rig_admin' && user) {
+          const { data: adminEmployee } = await supabase
+            .from('employees')
+            .select('rig_id')
+            .eq('clerk_user_id', user.id)
+            .single();
+          
+          if (adminEmployee?.rig_id) {
+            rigFilter = adminEmployee.rig_id;
+            setAdminRigId(rigFilter);
+            if (rigFilter) setSelectedRig(rigFilter); // Auto-select their rig
+          }
+        }
+
+        // Fetch rigs (all for super_admin, only assigned for rig_admin)
+        let rigsQuery = supabase.from('rigs').select('*').order('name');
+        if (rigFilter) {
+          rigsQuery = rigsQuery.eq('id', rigFilter);
+        }
+        const { data: rigsData } = await rigsQuery;
         if (rigsData) setRigs(rigsData);
 
         // Fetch employees with their training records
@@ -51,8 +69,10 @@ export default function EmployeesPage() {
           `)
           .order('name');
 
-        if (selectedRig) {
-          query = query.eq('rig_id', selectedRig);
+        // Apply rig filter (either from admin's assigned rig or user selection)
+        const activeRigFilter = rigFilter || selectedRig;
+        if (activeRigFilter) {
+          query = query.eq('rig_id', activeRigFilter);
         }
 
         const { data: employeesData, error } = await query;
@@ -92,7 +112,7 @@ export default function EmployeesPage() {
     if (!authLoading) {
       fetchData();
     }
-  }, [authLoading, selectedRig]);
+  }, [authLoading, selectedRig, user, userRole]);
 
   // Filter employees by search and status
   const filteredEmployees = employees.filter(emp => {
@@ -148,6 +168,7 @@ export default function EmployeesPage() {
           style={{ width: 'auto', minWidth: '150px' }}
           value={selectedRig}
           onChange={e => setSelectedRig(e.target.value)}
+          disabled={userRole === 'rig_admin'}
         >
           <option value="">All Rigs</option>
           {rigs.map(rig => (
