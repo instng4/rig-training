@@ -14,7 +14,7 @@ import { enrichTrainingRecords, getOverallStatus } from '@/lib/utils/training-st
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { userMetadata, loading: authLoading } = useAuth();
+  const { user, userMetadata, loading: authLoading } = useAuth();
   const userRole = userMetadata.role || 'employee';
   const [stats, setStats] = useState<DashboardStats>({
     total_employees: 0,
@@ -25,38 +25,67 @@ export default function DashboardPage() {
   const [recentTraining, setRecentTraining] = useState<any[]>([]);
   const [rigs, setRigs] = useState<Rig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminRigId, setAdminRigId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDashboardData() {
       const supabase = createClient();
       
       try {
-        // Fetch rigs
-        const { data: rigsData } = await supabase
-          .from('rigs')
-          .select('*')
-          .order('name');
-        
+        // For rig_admin, first get their assigned rig
+        let rigFilter: string | null = null;
+        if (userRole === 'rig_admin' && user) {
+          const { data: adminEmployee } = await supabase
+            .from('employees')
+            .select('rig_id')
+            .eq('clerk_user_id', user.id)
+            .single();
+          
+          if (adminEmployee?.rig_id) {
+            rigFilter = adminEmployee.rig_id;
+            setAdminRigId(rigFilter);
+          }
+        }
+
+        // Fetch rigs (filter for rig_admin)
+        let rigsQuery = supabase.from('rigs').select('*').order('name');
+        if (rigFilter) {
+          rigsQuery = rigsQuery.eq('id', rigFilter);
+        }
+        const { data: rigsData } = await rigsQuery;
         if (rigsData) setRigs(rigsData);
 
-        // Fetch employees count
-        const { count: employeeCount } = await supabase
-          .from('employees')
-          .select('*', { count: 'exact', head: true });
+        // Fetch employees count (filter for rig_admin)
+        let employeeQuery = supabase.from('employees').select('*', { count: 'exact', head: true });
+        if (rigFilter) {
+          employeeQuery = employeeQuery.eq('rig_id', rigFilter);
+        }
+        const { count: employeeCount } = await employeeQuery;
 
-        // Fetch training records with grace periods
-        const { data: trainingData } = await supabase
+        // Fetch training records with grace periods (filter for rig_admin)
+        let trainingQuery = supabase
           .from('training_records')
           .select('*, employees(name, cpf, rig_id)')
           .order('expiry_date', { ascending: true })
           .limit(10);
+        
+        // For rig_admin, we need to filter by employee's rig_id via join
+        const { data: trainingData } = await trainingQuery;
 
         const { data: graceSettings } = await supabase
           .from('grace_period_settings')
           .select('*');
 
         if (trainingData && graceSettings) {
-          const enriched = enrichTrainingRecords(trainingData, graceSettings);
+          // Filter training data for rig_admin
+          let filteredTrainingData = trainingData;
+          if (rigFilter) {
+            filteredTrainingData = trainingData.filter(
+              (t: any) => t.employees?.rig_id === rigFilter
+            );
+          }
+
+          const enriched = enrichTrainingRecords(filteredTrainingData, graceSettings);
           
           // Calculate stats
           const safeCount = enriched.filter(t => t.calculated_status === 'SAFE').length;
@@ -91,7 +120,7 @@ export default function DashboardPage() {
     if (!authLoading) {
       fetchDashboardData();
     }
-  }, [authLoading]);
+  }, [authLoading, user, userRole]);
 
   if (authLoading || loading) {
     return (

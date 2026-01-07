@@ -49,19 +49,46 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is authenticated and trying to access auth pages, redirect to dashboard
+  // If user is authenticated and trying to access auth pages, redirect to my-dashboard
+  // (we'll redirect to dashboard if admin after role check)
   if (user && (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))) {
     const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
+    url.pathname = '/my-dashboard';
     return NextResponse.redirect(url);
   }
 
-  // Role-based redirect: employees should not access dashboard directly
-  if (user && pathname === '/dashboard') {
-    const role = user.user_metadata?.role || 'employee';
-    if (role === 'employee') {
+  // For authenticated users, fetch role from employees table
+  if (user) {
+    // Fetch role from employees table (source of truth)
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('role')
+      .eq('clerk_user_id', user.id)
+      .single();
+
+    const role = employee?.role || 'employee';
+
+    // Redirect authenticated users from auth pages
+    if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) {
       const url = request.nextUrl.clone();
-      url.pathname = '/employees';
+      url.pathname = role === 'employee' ? '/my-dashboard' : '/dashboard';
+      return NextResponse.redirect(url);
+    }
+
+    // Role-based redirect: employees should go to my-dashboard, not admin routes
+    if (pathname === '/dashboard' && role === 'employee') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/my-dashboard';
+      return NextResponse.redirect(url);
+    }
+
+    // Block employees from accessing admin routes
+    const adminRoutes = ['/employees', '/training', '/admin', '/settings'];
+    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+    
+    if (role === 'employee' && isAdminRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/my-dashboard';
       return NextResponse.redirect(url);
     }
   }

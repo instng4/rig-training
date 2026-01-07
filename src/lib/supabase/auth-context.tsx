@@ -9,6 +9,7 @@ interface UserMetadata {
   lastName?: string;
   role?: 'employee' | 'rig_admin' | 'super_admin';
   avatarUrl?: string;
+  employeeId?: string;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   userMetadata: UserMetadata;
+  refreshRole: () => Promise<void>;
   signOut: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, metadata?: Partial<UserMetadata>) => Promise<{ error: Error | null }>;
@@ -32,17 +34,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const supabase = createClient();
 
+  // Fetch role from employees table (source of truth)
+  const fetchEmployeeRole = useCallback(async (userId: string) => {
+    const { data: employee, error } = await supabase
+      .from('employees')
+      .select('id, role, name, photo_url')
+      .eq('clerk_user_id', userId)
+      .single();
+
+    if (error || !employee) {
+      // Employee record doesn't exist yet - default to employee
+      return { role: 'employee' as const, employeeId: undefined, name: undefined, photoUrl: undefined };
+    }
+
+    return { 
+      role: employee.role as 'employee' | 'rig_admin' | 'super_admin', 
+      employeeId: employee.id,
+      name: employee.name,
+      photoUrl: employee.photo_url 
+    };
+  }, [supabase]);
+
+  // Function to manually refresh role (useful after role changes)
+  const refreshRole = useCallback(async () => {
+    if (!user) return;
+    const employeeData = await fetchEmployeeRole(user.id);
+    setUserMetadata(prev => ({
+      ...prev,
+      role: employeeData.role,
+      employeeId: employeeData.employeeId,
+    }));
+  }, [user, fetchEmployeeRole]);
+
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Fetch role from employees table
+        const employeeData = await fetchEmployeeRole(session.user.id);
         setUserMetadata({
           firstName: session.user.user_metadata?.first_name,
           lastName: session.user.user_metadata?.last_name,
-          role: session.user.user_metadata?.role || 'employee',
-          avatarUrl: session.user.user_metadata?.avatar_url,
+          role: employeeData.role,
+          avatarUrl: employeeData.photoUrl || session.user.user_metadata?.avatar_url,
+          employeeId: employeeData.employeeId,
         });
       }
       setLoading(false);
@@ -54,11 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // Fetch role from employees table
+          const employeeData = await fetchEmployeeRole(session.user.id);
           setUserMetadata({
             firstName: session.user.user_metadata?.first_name,
             lastName: session.user.user_metadata?.last_name,
-            role: session.user.user_metadata?.role || 'employee',
-            avatarUrl: session.user.user_metadata?.avatar_url,
+            role: employeeData.role,
+            avatarUrl: employeeData.photoUrl || session.user.user_metadata?.avatar_url,
+            employeeId: employeeData.employeeId,
           });
         } else {
           setUserMetadata({});
@@ -68,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, [supabase.auth, fetchEmployeeRole]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -116,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     loading,
     userMetadata,
+    refreshRole,
     signOut,
     signInWithEmail,
     signUpWithEmail,
