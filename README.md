@@ -1,10 +1,10 @@
 # RTMS - Rig Training Management System
 
-A centralized Training Management Platform for Rig Employees built with Next.js 14, Supabase, and Clerk.
+A centralized Training Management Platform for Rig Employees built with Next.js 14 and Supabase.
 
 ## Features
 
-- 🔐 **Authentication** - CPF-based login with Clerk (includes password reset)
+- 🔐 **Authentication** - Email/password login with Supabase Auth (Google OAuth ready)
 - 👥 **Employee Profiles** - Manage employee details, photos, and duty patterns
 - 📚 **Training Records** - Track MVT, IWCF, Fire, First Aid, PME, and custom training types
 - 🚦 **Status Tracking** - Automatic color-coded status (Safe/Upcoming/Overdue)
@@ -28,8 +28,6 @@ cp .env.example .env.local
 ```
 
 Required variables:
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - From Clerk Dashboard
-- `CLERK_SECRET_KEY` - From Clerk Dashboard
 - `NEXT_PUBLIC_SUPABASE_URL` - From Supabase Project Settings
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - From Supabase API Settings
 - `SUPABASE_SERVICE_ROLE_KEY` - From Supabase API Settings
@@ -42,11 +40,20 @@ Run the SQL migration in Supabase SQL Editor:
 supabase/migrations/001_initial_schema.sql
 ```
 
-### 4. Configure Clerk
-In Clerk Dashboard:
-1. Go to **User & Authentication** → **Email, Phone, Username**
-2. Enable "Username" as sign-in identifier (this will be the CPF)
-3. Configure password requirements
+### 4. Configure Supabase Auth
+
+In Supabase Dashboard:
+
+1. **Authentication → Providers → Email**: Ensure email auth is enabled
+2. **Authentication → URL Configuration**:
+   - Set **Site URL** to: `http://localhost:3000`
+   - Add to **Redirect URLs**: `http://localhost:3000/auth/callback`
+
+#### Optional: Enable Google OAuth
+1. Go to **Authentication → Providers → Google**
+2. Create OAuth credentials in Google Cloud Console
+3. Add Client ID and Client Secret
+4. Set redirect URL to: `https://your-project.supabase.co/auth/v1/callback`
 
 ### 5. Run Development Server
 ```bash
@@ -67,6 +74,7 @@ src/
 │   │   ├── training/
 │   │   ├── settings/
 │   │   └── admin/rigs/
+│   ├── auth/callback/    # OAuth callback handler
 │   ├── api/cron/         # Email reminder cron endpoint
 │   ├── layout.tsx
 │   └── page.tsx          # Landing page
@@ -76,7 +84,7 @@ src/
 │   ├── employees/
 │   └── training/
 └── lib/
-    ├── supabase/         # Database clients
+    ├── supabase/         # Database clients & auth context
     ├── email/            # Email provider abstraction
     ├── utils/            # Training status engine
     └── types/            # TypeScript definitions
@@ -111,7 +119,7 @@ Authorization: Bearer your-cron-secret
 - **Frontend**: Next.js 14 (App Router)
 - **Styling**: Tailwind CSS + Custom CSS
 - **Database**: Supabase (PostgreSQL)
-- **Authentication**: Clerk
+- **Authentication**: Supabase Auth
 - **Email**: Resend (with provider abstraction)
 
 ## License

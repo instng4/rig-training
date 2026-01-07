@@ -1,18 +1,18 @@
 'use client';
 
-// Force dynamic rendering since this page uses Clerk
+// Force dynamic rendering since this page uses auth
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { Plus, Edit2, Trash2, Save, X, Building2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Modal, ConfirmModal } from '@/components/ui/Modal';
 import type { Rig } from '@/lib/types/database';
 
 export default function RigsPage() {
-  const { user } = useUser();
-  const [userRole, setUserRole] = useState<string>('employee');
+  const { userMetadata } = useAuth();
+  const userRole = userMetadata.role || 'employee';
   const [rigs, setRigs] = useState<Rig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -20,12 +20,6 @@ export default function RigsPage() {
   const [editingRig, setEditingRig] = useState<Rig | null>(null);
   const [deleteRigId, setDeleteRigId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (user?.publicMetadata?.role) {
-      setUserRole(user.publicMetadata.role as string);
-    }
-  }, [user]);
 
   useEffect(() => {
     fetchRigs();

@@ -1,18 +1,18 @@
 'use client';
 
-// Force dynamic rendering since this page uses Clerk
+// Force dynamic rendering since this page uses auth
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { Save, Plus, Trash2, Settings as SettingsIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Modal, ConfirmModal } from '@/components/ui/Modal';
 import type { GracePeriodSetting, TrainingTypeConfig, EmailTemplate } from '@/lib/types/database';
 
 export default function SettingsPage() {
-  const { user } = useUser();
-  const [userRole, setUserRole] = useState<string>('employee');
+  const { userMetadata } = useAuth();
+  const userRole = userMetadata.role || 'employee';
   const [activeTab, setActiveTab] = useState<'grace' | 'training' | 'email'>('grace');
   const [loading, setLoading] = useState(true);
   
@@ -29,12 +29,6 @@ export default function SettingsPage() {
   const [showAddType, setShowAddType] = useState(false);
   const [newType, setNewType] = useState({ name: '', validity_months: 12 });
   const [deleteTypeId, setDeleteTypeId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.publicMetadata?.role) {
-      setUserRole(user.publicMetadata.role as string);
-    }
-  }, [user]);
 
   useEffect(() => {
     fetchData();

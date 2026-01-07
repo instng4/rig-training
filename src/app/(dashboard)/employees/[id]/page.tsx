@@ -1,11 +1,11 @@
 'use client';
 
-// Force dynamic rendering since this page uses Clerk
+// Force dynamic rendering since this page uses auth
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { ArrowLeft, Edit2, Save, X, Trash2, Calendar } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar, AvatarUpload } from '@/components/ui/Avatar';
@@ -18,7 +18,7 @@ import Link from 'next/link';
 export default function EmployeeDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useUser();
+  const { user } = useAuth();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [rigs, setRigs] = useState<Rig[]>([]);
   const [trainingRecords, setTrainingRecords] = useState<any[]>([]);

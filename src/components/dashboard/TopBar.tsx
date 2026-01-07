@@ -1,7 +1,9 @@
 'use client';
 
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/supabase/auth-context';
 
 interface TopBarProps {
   onSearch?: (query: string) => void;
@@ -9,10 +11,18 @@ interface TopBarProps {
 
 export function TopBar({ onSearch }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { signOut } = useAuth();
+  const router = useRouter();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch?.(searchQuery);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+    router.refresh();
   };
 
   return (
@@ -31,6 +41,20 @@ export function TopBar({ onSearch }: TopBarProps) {
       <div className="flex items-center gap-3">
         <button className="btn btn-secondary" style={{ padding: '0.5rem' }}>
           <Bell size={20} />
+        </button>
+        <button 
+          className="btn btn-secondary" 
+          onClick={handleSignOut}
+          title="Sign out"
+          style={{ 
+            padding: '0.5rem 0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <LogOut size={18} />
+          <span style={{ fontSize: '0.875rem' }}>Logout</span>
         </button>
       </div>
     </div>

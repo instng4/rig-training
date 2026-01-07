@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useUser, UserButton } from '@clerk/nextjs';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/supabase/auth-context';
 import {
   LayoutDashboard,
   Users,
@@ -12,8 +12,11 @@ import {
   Building2,
   Menu,
   X,
+  LogOut,
+  ChevronDown,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Avatar } from '@/components/ui/Avatar';
 
 interface NavItem {
   href: string;
@@ -35,20 +38,38 @@ const adminNavItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useUser();
+  const router = useRouter();
+  const { user, userMetadata, signOut, loading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [userRole, setUserRole] = useState<string>('employee');
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Get role from user metadata
+  const userRole = userMetadata.role || 'employee';
+
+  // Close user menu when clicking outside
   useEffect(() => {
-    if (user?.publicMetadata?.role) {
-      setUserRole(user.publicMetadata.role as string);
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
     }
-  }, [user]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+    router.refresh();
+  };
 
   const filteredAdminItems = adminNavItems.filter(
     item => !item.roles || item.roles.includes(userRole)
   );
+
+  const displayName = userMetadata.firstName && userMetadata.lastName
+    ? `${userMetadata.firstName} ${userMetadata.lastName}`
+    : user?.email?.split('@')[0] || 'User';
 
   return (
     <>
@@ -124,16 +145,75 @@ export function Sidebar() {
           )}
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="flex items-center gap-3">
-            <UserButton afterSignOutUrl="/" />
-            <div>
-              <div className="text-sm font-medium truncate" style={{ maxWidth: '160px' }}>
-                {user?.firstName} {user?.lastName}
+        <div className="sidebar-footer" ref={userMenuRef}>
+          <div 
+            className="flex items-center gap-3"
+            style={{ 
+              cursor: 'pointer',
+              padding: '0.5rem',
+              borderRadius: 'var(--radius)',
+              transition: 'background 0.2s',
+            }}
+            onClick={() => setShowUserMenu(!showUserMenu)}
+          >
+            <Avatar 
+              photoUrl={userMetadata.avatarUrl} 
+              name={displayName} 
+              size="sm" 
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="text-sm font-medium truncate" style={{ maxWidth: '140px' }}>
+                {loading ? 'Loading...' : displayName}
               </div>
               <div className="text-xs text-muted">{userRole.replace('_', ' ')}</div>
             </div>
+            <ChevronDown 
+              size={16} 
+              style={{ 
+                color: 'var(--muted-foreground)',
+                transition: 'transform 0.2s',
+                transform: showUserMenu ? 'rotate(180deg)' : 'none',
+              }} 
+            />
           </div>
+
+          {/* User dropdown menu */}
+          {showUserMenu && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '0.75rem',
+              right: '0.75rem',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              boxShadow: 'var(--shadow-lg)',
+              marginBottom: '0.5rem',
+              overflow: 'hidden',
+            }}>
+              <button
+                onClick={handleSignOut}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--danger)',
+                  fontSize: '0.875rem',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--muted)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <LogOut size={16} />
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

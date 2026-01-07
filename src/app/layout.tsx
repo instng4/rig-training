@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { ClerkProvider } from '@clerk/nextjs';
+import { AuthProvider } from '@/lib/supabase/auth-context';
 import { ToastProvider } from '@/components/ui/Toast';
 import "./globals.css";
 
-// Force dynamic rendering for Clerk-dependent app
+// Force dynamic rendering for auth-dependent app
 export const dynamic = 'force-dynamic';
 
 const inter = Inter({
@@ -23,14 +23,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className={`${inter.variable} antialiased`}>
+    <html lang="en">
+      <body className={`${inter.variable} antialiased`}>
+        <AuthProvider>
           <ToastProvider>
             {children}
           </ToastProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }

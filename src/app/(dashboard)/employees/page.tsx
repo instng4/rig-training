@@ -1,11 +1,11 @@
 'use client';
 
-// Force dynamic rendering since this page uses Clerk
+// Force dynamic rendering since this page uses auth
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { Search, Plus, Filter, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui/Avatar';
@@ -19,7 +19,7 @@ interface EmployeeWithStatus extends Employee {
 }
 
 export default function EmployeesPage() {
-  const { user, isLoaded } = useUser();
+  const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const [employees, setEmployees] = useState<EmployeeWithStatus[]>([]);
   const [rigs, setRigs] = useState<Rig[]>([]);
@@ -89,10 +89,10 @@ export default function EmployeesPage() {
       }
     }
 
-    if (isLoaded) {
+    if (!authLoading) {
       fetchData();
     }
-  }, [isLoaded, selectedRig]);
+  }, [authLoading, selectedRig]);
 
   // Filter employees by search and status
   const filteredEmployees = employees.filter(emp => {
@@ -106,7 +106,7 @@ export default function EmployeesPage() {
     return matchesSearch && matchesStatus;
   });
 
-  if (!isLoaded || loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
         <div className="spinner" style={{ width: '2rem', height: '2rem' }} />

@@ -1,9 +1,9 @@
 'use client';
 
-// Force dynamic rendering since this page uses Clerk
+// Force dynamic rendering since this page uses auth
 export const dynamic = 'force-dynamic';
 
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { useEffect, useState } from 'react';
 import { Users, GraduationCap, AlertTriangle, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 import { StatsCard } from '@/components/ui/StatsCard';
@@ -14,7 +14,8 @@ import { enrichTrainingRecords, getOverallStatus } from '@/lib/utils/training-st
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
+  const { userMetadata, loading: authLoading } = useAuth();
+  const userRole = userMetadata.role || 'employee';
   const [stats, setStats] = useState<DashboardStats>({
     total_employees: 0,
     safe_count: 0,
@@ -24,13 +25,6 @@ export default function DashboardPage() {
   const [recentTraining, setRecentTraining] = useState<any[]>([]);
   const [rigs, setRigs] = useState<Rig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>('employee');
-
-  useEffect(() => {
-    if (user?.publicMetadata?.role) {
-      setUserRole(user.publicMetadata.role as string);
-    }
-  }, [user]);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -94,12 +88,12 @@ export default function DashboardPage() {
       }
     }
 
-    if (isLoaded) {
+    if (!authLoading) {
       fetchDashboardData();
     }
-  }, [isLoaded]);
+  }, [authLoading]);
 
-  if (!isLoaded || loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
         <div className="spinner" style={{ width: '2rem', height: '2rem' }} />
@@ -114,7 +108,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-muted text-sm">
-            Welcome back, {user?.firstName || 'User'}! Here's an overview of training statuses.
+            Welcome back, {userMetadata.firstName || 'User'}! Here's an overview of training statuses.
           </p>
         </div>
         <Link href="/training" className="btn btn-primary">

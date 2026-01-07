@@ -12,7 +12,7 @@ export interface Rig {
 
 export interface Employee {
   id: string;
-  clerk_user_id: string;
+  auth_user_id: string;
   name: string;
   cpf: string;
   email: string;
