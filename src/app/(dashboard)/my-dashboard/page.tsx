@@ -52,6 +52,17 @@ export default function MyDashboardPage() {
   });
   const [savingTraining, setSavingTraining] = useState(false);
 
+  // Edit training modal state
+  const [showEditTrainingModal, setShowEditTrainingModal] = useState(false);
+  const [editingTraining, setEditingTraining] = useState<any>(null);
+  const [editTraining, setEditTraining] = useState({
+    training_type: '',
+    custom_training_name: '',
+    completed_date: '',
+    expiry_date: '',
+  });
+  const [savingEditTraining, setSavingEditTraining] = useState(false);
+
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
@@ -265,6 +276,57 @@ export default function MyDashboardPage() {
       setNewTraining({ training_type: '', custom_training_name: '', completed_date: '', expiry_date: '' });
     }
     setSavingTraining(false);
+  };
+
+  const handleEditTraining = async () => {
+    if (!employee || !editingTraining || !editTraining.training_type || !editTraining.completed_date) return;
+
+    setSavingEditTraining(true);
+    const supabase = createClient();
+
+    // Use custom name for "Other" type, otherwise use selected type
+    const trainingTypeName = editTraining.training_type === 'Other' && editTraining.custom_training_name
+      ? editTraining.custom_training_name
+      : editTraining.training_type;
+
+    // Calculate expiry date based on training type validity if not provided
+    let expiryDate = editTraining.expiry_date;
+    if (!expiryDate) {
+      const trainingType = trainingTypes.find(t => t.name === editTraining.training_type);
+      const validityMonths = trainingType?.default_validity_months || 12;
+      const completed = new Date(editTraining.completed_date);
+      completed.setMonth(completed.getMonth() + validityMonths);
+      expiryDate = completed.toISOString().split('T')[0];
+    }
+
+    const { error } = await supabase
+      .from('training_records')
+      .update({
+        training_type: trainingTypeName,
+        completed_date: editTraining.completed_date,
+        expiry_date: expiryDate,
+      })
+      .eq('id', editingTraining.id);
+
+    if (error) {
+      console.error('Error updating training:', error);
+    } else {
+      // Refresh training records
+      const { data: trainingData } = await supabase
+        .from('training_records')
+        .select('*')
+        .eq('employee_id', employee.id)
+        .order('expiry_date', { ascending: true });
+
+      if (trainingData && graceSettings) {
+        const enriched = enrichTrainingRecords(trainingData, graceSettings);
+        setTrainingRecords(enriched);
+      }
+
+      setShowEditTrainingModal(false);
+      setEditingTraining(null);
+    }
+    setSavingEditTraining(false);
   };
 
   if (authLoading || loading) {
@@ -608,6 +670,7 @@ export default function MyDashboardPage() {
                     <th>Expires</th>
                     <th>Days Left</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -630,6 +693,26 @@ export default function MyDashboardPage() {
                       </td>
                       <td>
                         <StatusBadge status={record.calculated_status} size="sm" />
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.25rem 0.5rem' }}
+                          onClick={() => {
+                            setEditingTraining(record);
+                            const isKnownType = trainingTypes.some(t => t.name === record.training_type);
+                            setEditTraining({
+                              training_type: isKnownType ? record.training_type : 'Other',
+                              custom_training_name: isKnownType ? '' : record.training_type,
+                              completed_date: record.completed_date,
+                              expiry_date: record.expiry_date,
+                            });
+                            setShowEditTrainingModal(true);
+                          }}
+                        >
+                          <Edit2 size={14} />
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -708,6 +791,85 @@ export default function MyDashboardPage() {
               className="input"
               value={newTraining.expiry_date}
               onChange={e => setNewTraining({ ...newTraining, expiry_date: e.target.value })}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Training Modal */}
+      <Modal
+        isOpen={showEditTrainingModal}
+        onClose={() => {
+          setShowEditTrainingModal(false);
+          setEditingTraining(null);
+        }}
+        title="Edit Training Record"
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => {
+              setShowEditTrainingModal(false);
+              setEditingTraining(null);
+            }}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleEditTraining}
+              disabled={savingEditTraining || !editTraining.training_type || !editTraining.completed_date}
+            >
+              {savingEditTraining && <span className="spinner" />}
+              Save Changes
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="input-group">
+            <label className="input-label">Training Type *</label>
+            <select
+              className="input select"
+              value={editTraining.training_type}
+              onChange={e => setEditTraining({ ...editTraining, training_type: e.target.value })}
+            >
+              <option value="">Select Training Type</option>
+              {trainingTypes.map(type => (
+                <option key={type.id} value={type.name}>{type.name}</option>
+              ))}
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {editTraining.training_type === 'Other' && (
+            <div className="input-group">
+              <label className="input-label">Custom Training Name *</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Enter training name"
+                value={editTraining.custom_training_name}
+                onChange={e => setEditTraining({ ...editTraining, custom_training_name: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div className="input-group">
+            <label className="input-label">Completed Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={editTraining.completed_date}
+              onChange={e => setEditTraining({ ...editTraining, completed_date: e.target.value })}
+            />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Expiry Date (auto-calculated if empty)</label>
+            <input
+              type="date"
+              className="input"
+              value={editTraining.expiry_date}
+              onChange={e => setEditTraining({ ...editTraining, expiry_date: e.target.value })}
             />
           </div>
         </div>

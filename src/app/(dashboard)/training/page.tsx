@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Plus, Filter, GraduationCap } from 'lucide-react';
+import { Search, Plus, Filter, GraduationCap, Edit2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
@@ -38,6 +38,16 @@ export default function TrainingPage() {
     expiry_date: '',
   });
   const [saving, setSaving] = useState(false);
+
+  // Edit modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
+  const [editRecord, setEditRecord] = useState({
+    training_type: '',
+    completed_date: '',
+    expiry_date: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -115,6 +125,40 @@ export default function TrainingPage() {
       fetchData();
     }
     setSaving(false);
+  };
+
+  const handleEditRecord = async () => {
+    if (!editingRecord || !editRecord.training_type || !editRecord.completed_date) return;
+
+    setSavingEdit(true);
+    const supabase = createClient();
+
+    let expiryDate = editRecord.expiry_date;
+    if (!expiryDate) {
+      const trainingType = trainingTypes.find(t => t.name === editRecord.training_type);
+      const validityMonths = trainingType?.default_validity_months || 12;
+      const completed = new Date(editRecord.completed_date);
+      completed.setMonth(completed.getMonth() + validityMonths);
+      expiryDate = completed.toISOString().split('T')[0];
+    }
+
+    const { error } = await supabase
+      .from('training_records')
+      .update({
+        training_type: editRecord.training_type,
+        completed_date: editRecord.completed_date,
+        expiry_date: expiryDate,
+      })
+      .eq('id', editingRecord.id);
+
+    if (error) {
+      console.error('Error updating record:', error);
+    } else {
+      setShowEditModal(false);
+      setEditingRecord(null);
+      fetchData();
+    }
+    setSavingEdit(false);
   };
 
   // Filter records
@@ -240,6 +284,7 @@ export default function TrainingPage() {
                 <th>Expires</th>
                 <th>Days Left</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -269,6 +314,24 @@ export default function TrainingPage() {
                   </td>
                   <td>
                     <StatusBadge status={record.calculated_status} size="sm" />
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '0.25rem 0.5rem' }}
+                      onClick={() => {
+                        setEditingRecord(record);
+                        setEditRecord({
+                          training_type: record.training_type,
+                          completed_date: record.completed_date,
+                          expiry_date: record.expiry_date,
+                        });
+                        setShowEditModal(true);
+                      }}
+                    >
+                      <Edit2 size={14} />
+                      Edit
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -347,6 +410,71 @@ export default function TrainingPage() {
               className="input"
               value={newRecord.expiry_date}
               onChange={e => setNewRecord({ ...newRecord, expiry_date: e.target.value })}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Training Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingRecord(null);
+        }}
+        title="Edit Training Record"
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => {
+              setShowEditModal(false);
+              setEditingRecord(null);
+            }}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleEditRecord}
+              disabled={savingEdit || !editRecord.training_type || !editRecord.completed_date}
+            >
+              {savingEdit && <span className="spinner" />}
+              Save Changes
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="input-group">
+            <label className="input-label">Training Type *</label>
+            <select
+              className="input select"
+              value={editRecord.training_type}
+              onChange={e => setEditRecord({ ...editRecord, training_type: e.target.value })}
+            >
+              <option value="">Select Training Type</option>
+              {trainingTypes.map(type => (
+                <option key={type.id} value={type.name}>{type.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Completed Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={editRecord.completed_date}
+              onChange={e => setEditRecord({ ...editRecord, completed_date: e.target.value })}
+            />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Expiry Date (auto-calculated if empty)</label>
+            <input
+              type="date"
+              className="input"
+              value={editRecord.expiry_date}
+              onChange={e => setEditRecord({ ...editRecord, expiry_date: e.target.value })}
             />
           </div>
         </div>
