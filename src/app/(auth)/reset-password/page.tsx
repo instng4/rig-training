@@ -1,40 +1,111 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/lib/supabase/auth-context';
-import { Mail, Lock, Eye, EyeOff, Shield, Loader2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Loader2, CheckCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default function SignInPage() {
-  const router = useRouter();
-  const { signInWithEmail } = useAuth();
-  const [email, setEmail] = useState('');
+export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     setLoading(true);
 
-    const { error } = await signInWithEmail(email, password);
+    try {
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
 
-    if (error) {
-      setError(error.message);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to update password');
+        setLoading(false);
+      } else {
+        setSuccess(true);
+        setLoading(false);
+      }
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
       setLoading(false);
-    } else {
-      router.push('/dashboard');
-      router.refresh();
     }
   };
 
+  // Success state
+  if (success) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--background) 100%)',
+        padding: '2rem',
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '420px',
+          background: 'var(--card)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-lg)',
+          padding: '2.5rem',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'var(--success-100)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+          }}>
+            <CheckCircle size={32} color="var(--success-600)" />
+          </div>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: '600',
+            marginBottom: '0.75rem',
+            color: 'var(--foreground)',
+          }}>Password updated!</h1>
+          <p style={{
+            color: 'var(--muted-foreground)',
+            marginBottom: '2rem',
+          }}>
+            Your password has been successfully reset. Please sign in again with your new password.
+          </p>
+          <Link href="/sign-in" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            Go to Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-
+  // Main reset form
   return (
     <div style={{
       minHeight: '100vh',
@@ -84,12 +155,12 @@ export default function SignInPage() {
           textAlign: 'center',
           marginBottom: '0.5rem',
           color: 'var(--foreground)',
-        }}>Welcome back</h1>
+        }}>Reset your password</h1>
         <p style={{
           textAlign: 'center',
           color: 'var(--muted-foreground)',
           marginBottom: '2rem',
-        }}>Sign in to your account</p>
+        }}>Enter your new password below</p>
 
         {error && (
           <div style={{
@@ -113,35 +184,7 @@ export default function SignInPage() {
               fontWeight: '500',
               marginBottom: '0.5rem',
               color: 'var(--foreground)',
-            }}>Email</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{
-                position: 'absolute',
-                left: '0.875rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--muted-foreground)',
-              }} />
-              <input
-                type="email"
-                className="input"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                style={{ paddingLeft: '2.75rem' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              marginBottom: '0.5rem',
-              color: 'var(--foreground)',
-            }}>Password</label>
+            }}>New Password</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{
                 position: 'absolute',
@@ -153,10 +196,12 @@ export default function SignInPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="input"
-                placeholder="••••••••"
+                placeholder="Min 6 characters"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
+                minLength={6}
+                autoComplete="new-password"
                 style={{ paddingLeft: '2.75rem', paddingRight: '2.75rem' }}
               />
               <button
@@ -179,17 +224,51 @@ export default function SignInPage() {
             </div>
           </div>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: '1.5rem',
-            marginTop: '-0.75rem',
-          }}>
-            <Link href="/forgot-password" style={{
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{
+              display: 'block',
               fontSize: '0.875rem',
-              color: 'var(--primary)',
               fontWeight: '500',
-            }}>Forgot password?</Link>
+              marginBottom: '0.5rem',
+              color: 'var(--foreground)',
+            }}>Confirm Password</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{
+                position: 'absolute',
+                left: '0.875rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--muted-foreground)',
+              }} />
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                className="input"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete="new-password"
+                style={{ paddingLeft: '2.75rem', paddingRight: '2.75rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '0.875rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--muted-foreground)',
+                  padding: 0,
+                }}
+              >
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button
@@ -201,25 +280,13 @@ export default function SignInPage() {
             {loading ? (
               <>
                 <Loader2 size={18} className="spinner" />
-                Signing in...
+                Updating password...
               </>
             ) : (
-              'Sign in'
+              'Reset password'
             )}
           </button>
         </form>
-
-        <p style={{
-          textAlign: 'center',
-          marginTop: '2rem',
-          color: 'var(--muted-foreground)',
-          fontSize: '0.875rem',
-        }}>
-          Don&apos;t have an account?{' '}
-          <Link href="/sign-up" style={{ color: 'var(--primary)', fontWeight: '500' }}>
-            Sign up
-          </Link>
-        </p>
       </div>
     </div>
   );

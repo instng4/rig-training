@@ -1,39 +1,85 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { Mail, Lock, Eye, EyeOff, Shield, Loader2 } from 'lucide-react';
+import { Mail, Shield, Loader2, ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default function SignInPage() {
-  const router = useRouter();
-  const { signInWithEmail } = useAuth();
+export default function ForgotPasswordPage() {
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await signInWithEmail(email, password);
+    const { error } = await resetPassword(email);
 
     if (error) {
       setError(error.message);
-      setLoading(false);
     } else {
-      router.push('/dashboard');
-      router.refresh();
+      setSuccess(true);
     }
+    setLoading(false);
   };
 
-
+  if (success) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--background) 100%)',
+        padding: '2rem',
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '420px',
+          background: 'var(--card)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-lg)',
+          padding: '2.5rem',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'var(--success-100)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+          }}>
+            <Mail size={32} color="var(--success-600)" />
+          </div>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: '600',
+            marginBottom: '0.75rem',
+            color: 'var(--foreground)',
+          }}>Check your email</h1>
+          <p style={{
+            color: 'var(--muted-foreground)',
+            marginBottom: '2rem',
+          }}>
+            We&apos;ve sent a password reset link to <strong>{email}</strong>.
+            Please click the link to reset your password.
+          </p>
+          <Link href="/sign-in" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            Back to Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -84,12 +130,12 @@ export default function SignInPage() {
           textAlign: 'center',
           marginBottom: '0.5rem',
           color: 'var(--foreground)',
-        }}>Welcome back</h1>
+        }}>Forgot your password?</h1>
         <p style={{
           textAlign: 'center',
           color: 'var(--muted-foreground)',
           marginBottom: '2rem',
-        }}>Sign in to your account</p>
+        }}>Enter your email and we&apos;ll send you a reset link</p>
 
         {error && (
           <div style={{
@@ -106,7 +152,7 @@ export default function SignInPage() {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
             <label style={{
               display: 'block',
               fontSize: '0.875rem',
@@ -134,64 +180,6 @@ export default function SignInPage() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              marginBottom: '0.5rem',
-              color: 'var(--foreground)',
-            }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{
-                position: 'absolute',
-                left: '0.875rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--muted-foreground)',
-              }} />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="input"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                style={{ paddingLeft: '2.75rem', paddingRight: '2.75rem' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '0.875rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--muted-foreground)',
-                  padding: 0,
-                }}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            marginBottom: '1.5rem',
-            marginTop: '-0.75rem',
-          }}>
-            <Link href="/forgot-password" style={{
-              fontSize: '0.875rem',
-              color: 'var(--primary)',
-              fontWeight: '500',
-            }}>Forgot password?</Link>
-          </div>
-
           <button
             type="submit"
             className="btn btn-primary"
@@ -201,10 +189,10 @@ export default function SignInPage() {
             {loading ? (
               <>
                 <Loader2 size={18} className="spinner" />
-                Signing in...
+                Sending reset link...
               </>
             ) : (
-              'Sign in'
+              'Send reset link'
             )}
           </button>
         </form>
@@ -215,9 +203,15 @@ export default function SignInPage() {
           color: 'var(--muted-foreground)',
           fontSize: '0.875rem',
         }}>
-          Don&apos;t have an account?{' '}
-          <Link href="/sign-up" style={{ color: 'var(--primary)', fontWeight: '500' }}>
-            Sign up
+          <Link href="/sign-in" style={{
+            color: 'var(--primary)',
+            fontWeight: '500',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+          }}>
+            <ArrowLeft size={14} />
+            Back to Sign In
           </Link>
         </p>
       </div>
