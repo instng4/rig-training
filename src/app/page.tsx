@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Shield, Users, GraduationCap, BarChart3, Bell, ArrowRight } from 'lucide-react';
+import Footer from '@/components/Footer';
 
 export default function LandingPage() {
   return (
@@ -151,15 +152,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ 
-        padding: '2rem 1.5rem',
-        textAlign: 'center',
-        color: 'var(--muted)',
-        fontSize: '0.875rem',
-      }}>
-        <p>© {new Date().getFullYear()} RTMS - Rig Training Management System. All rights reserved.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }
