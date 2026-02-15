@@ -55,7 +55,7 @@ const Footer = () => {
 
           {/* Product Links */}
           <div className="footer-col footer-animate" style={{ animationDelay: "0.1s" }}>
-            <h4 className="footer-heading">Product</h4>
+            <h4 className="footer-heading">Features</h4>
             <ul className="footer-links">
               <li>
                 <Link href="/#features">Employee Profiles</Link>
@@ -83,7 +83,7 @@ const Footer = () => {
                 <Link href="/#features">For Drilling Rigs</Link>
               </li>
               <li>
-                <Link href="/#features">For Offshore Crews</Link>
+                <Link href="/#features">For Onfshore Crews</Link>
               </li>
               <li>
                 <Link href="/#features">For Safety Teams</Link>
