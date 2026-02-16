@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist, Space_Grotesk } from "next/font/google";
 import { AuthProvider } from '@/lib/supabase/auth-context';
 import { ToastProvider } from '@/components/ui/Toast';
 import "./globals.css";
@@ -9,6 +9,17 @@ export const dynamic = 'force-dynamic';
 
 const inter = Inter({
   variable: "--font-sans",
+  subsets: ["latin"],
+});
+
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+});
+
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -24,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${inter.variable} ${geist.variable} ${spaceGrotesk.variable} antialiased`}>
         <AuthProvider>
           <ToastProvider>
             {children}
