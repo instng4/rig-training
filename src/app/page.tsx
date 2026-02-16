@@ -94,7 +94,7 @@ export default function LandingPage() {
                 {link.label}
               </a>
             ))}
-            <Link href="/sign-up" className="landing-nav-cta" onClick={handleNavClick}>
+            <Link href="/v1/sign-up" className="landing-nav-cta" onClick={handleNavClick}>
               Get Started
             </Link>
           </nav>
@@ -107,7 +107,7 @@ export default function LandingPage() {
             >
               <ThemeIcon size={16} />
             </button>
-            <Link href="/sign-in" className="landing-nav-login">Log In</Link>
+            <Link href="/v1/sign-in" className="landing-nav-login">Log In</Link>
             <button className="landing-nav-menu-btn" onClick={toggleMenu} aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}>
               {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -132,7 +132,7 @@ export default function LandingPage() {
               {link.label}
             </a>
           ))}
-          <Link href="/sign-up" className="landing-mobile-cta" onClick={handleNavClick}>
+          <Link href="/v1/sign-up" className="landing-mobile-cta" onClick={handleNavClick}>
             Get Started
           </Link>
         </nav>
@@ -157,11 +157,11 @@ export default function LandingPage() {
             manage expiry dates, and plan training batches intelligently.
           </p>
           <div className="landing-hero-ctas">
-            <Link href="/sign-up" className="landing-cta-primary">
+            <Link href="/v1/sign-up" className="landing-cta-primary">
               Sign Up
               <span className="cta-arrow"><ArrowUpRight size={18} /></span>
             </Link>
-            <Link href="/sign-in" className="landing-cta-secondary">
+            <Link href="/v1/sign-in" className="landing-cta-secondary">
               Sign In
             </Link>
           </div>
@@ -274,7 +274,7 @@ export default function LandingPage() {
           <div className="cta-texture" />
           <h2>Ready to secure your workforce?</h2>
           <p>Start managing your workforce training intelligence with RTMS today.</p>
-          <Link href="/sign-up" className="landing-cta-black">
+          <Link href="/v1/sign-up" className="landing-cta-black">
             Get Started Now
             <Rocket size={20} />
           </Link>

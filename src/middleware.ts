@@ -39,6 +39,9 @@ export async function middleware(request: NextRequest) {
     pathname === '/' ||
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/sign-up') ||
+    pathname.startsWith('/v1/sign-in') ||
+    pathname.startsWith('/v1/sign-up') ||
+    pathname.startsWith('/v1/forgot-password') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/callback') ||
@@ -53,7 +56,7 @@ export async function middleware(request: NextRequest) {
 
   // If user is authenticated and trying to access auth pages, redirect to my-dashboard
   // (we'll redirect to dashboard if admin after role check)
-  if (user && (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))) {
+  if (user && (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname.startsWith('/v1/sign-in') || pathname.startsWith('/v1/sign-up') || pathname.startsWith('/v1/forgot-password'))) {
     const url = request.nextUrl.clone();
     url.pathname = '/my-dashboard';
     return NextResponse.redirect(url);
@@ -71,7 +74,7 @@ export async function middleware(request: NextRequest) {
     const role = employee?.role || 'employee';
 
     // Redirect authenticated users from auth pages
-    if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) {
+    if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname.startsWith('/v1/sign-in') || pathname.startsWith('/v1/sign-up') || pathname.startsWith('/v1/forgot-password')) {
       const url = request.nextUrl.clone();
       url.pathname = role === 'employee' ? '/my-dashboard' : '/dashboard';
       return NextResponse.redirect(url);
