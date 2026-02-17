@@ -96,15 +96,8 @@ export function Sidebar() {
     <>
       {/* Mobile Menu Button */}
       <button
-        className="btn btn-secondary"
+        className="btn btn-secondary mobile-menu-btn"
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: 'fixed',
-          top: '1rem',
-          left: '1rem',
-          zIndex: 60,
-          display: 'none',
-        }}
         aria-label="Toggle menu"
       >
         {isOpen ? <X size={20} /> : <Menu size={20} />}

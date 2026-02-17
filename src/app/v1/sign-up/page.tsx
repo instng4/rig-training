@@ -90,7 +90,7 @@ export default function V1SignUpPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-10 space-y-4">
-          <div className="grid grid-cols-2 gap-4 animate-slide-right delay-400">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-slide-right delay-400">
              <div>
                 <label className="sr-only font-geist" htmlFor="firstName">First name</label>
                 <input
@@ -174,7 +174,7 @@ export default function V1SignUpPage() {
       </div>
 
       {/* Right / Illustration */}
-      <div className="w-full lg:w-1/2 relative min-h-[24rem] lg:min-h-[36rem] overflow-hidden animate-blur-in delay-200 bg-[url(https://cdn.midjourney.com/ddbd3d4d-dfb1-47cc-9964-ea9c84f0faa9/0_3.png?w=800&q=80)] bg-cover bg-center">
+      <div className="w-full lg:w-1/2 relative min-h-[16rem] sm:min-h-[20rem] lg:min-h-[36rem] overflow-hidden animate-blur-in delay-200 bg-[url(https://cdn.midjourney.com/ddbd3d4d-dfb1-47cc-9964-ea9c84f0faa9/0_3.png?w=800&q=80)] bg-cover bg-center">
         {/* Animated Background Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-violet-900/60 to-violet-900/20"></div>
 

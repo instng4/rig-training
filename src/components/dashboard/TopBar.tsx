@@ -54,7 +54,7 @@ export function TopBar({ onSearch }: TopBarProps) {
           }}
         >
           <LogOut size={18} />
-          <span style={{ fontSize: '0.875rem' }}>Logout</span>
+          <span className="logout-text" style={{ fontSize: '0.875rem' }}>Logout</span>
         </button>
       </div>
     </div>
