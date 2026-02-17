@@ -5,12 +5,13 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Plus, Filter, GraduationCap, Edit2 } from 'lucide-react';
+import { Search, Plus, Filter, GraduationCap, Edit2, MapPin, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
-import type { Employee, TrainingRecord, Rig, TrainingTypeConfig, GracePeriodSetting } from '@/lib/types/database';
+import type { Employee, TrainingRecord, Rig, TrainingTypeConfig, GracePeriodSetting, TrainingSchedule } from '@/lib/types/database';
 import { enrichTrainingRecords } from '@/lib/utils/training-status';
+import { categorizeDateRange } from '@/lib/utils/duty-utils';
 
 export default function TrainingPage() {
   const searchParams = useSearchParams();
@@ -48,6 +49,14 @@ export default function TrainingPage() {
     expiry_date: '',
   });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Search available training modal state
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchModalRecord, setSearchModalRecord] = useState<any>(null);
+  const [searchSchedules, setSearchSchedules] = useState<(TrainingSchedule & { dutyStatus: string })[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState<Record<string, boolean>>({});
+  const [emailStatus, setEmailStatus] = useState<Record<string, { success: boolean; message: string }>>({});
 
   useEffect(() => {
     fetchData();
@@ -159,6 +168,94 @@ export default function TrainingPage() {
       fetchData();
     }
     setSavingEdit(false);
+  };
+
+  const handleSearchTraining = async (record: any) => {
+    setSearchModalRecord(record);
+    setShowSearchModal(true);
+    setSearchLoading(true);
+    setSearchSchedules([]);
+    setEmailStatus({});
+
+    const supabase = createClient();
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: schedulesData } = await supabase
+      .from('training_schedules')
+      .select('*')
+      .eq('training_type', record.training_type)
+      .gte('start_date', today)
+      .order('start_date', { ascending: true });
+
+    // Fetch employee's duty pattern
+    const empId = record.employee_id || record.employee?.id;
+    const { data: empData } = await supabase
+      .from('employees')
+      .select('duty_pattern')
+      .eq('id', empId)
+      .single();
+
+    const dutyPattern = empData?.duty_pattern;
+
+    if (!schedulesData || schedulesData.length === 0) {
+      setSearchSchedules([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const categorized = schedulesData.map(schedule => {
+      let dutyStatus = 'N/A';
+      if (dutyPattern?.start_date) {
+        const cat = categorizeDateRange(
+          dutyPattern,
+          new Date(schedule.start_date + 'T00:00:00'),
+          new Date(schedule.end_date + 'T00:00:00')
+        );
+        if (cat === 'off') dutyStatus = 'Off Period ✓';
+        else if (cat === 'on') dutyStatus = 'On Period';
+        else dutyStatus = 'Mixed';
+      }
+      return { ...schedule, dutyStatus };
+    });
+
+    const priorityOrder: Record<string, number> = { 'Off Period ✓': 0, 'Mixed': 1, 'On Period': 2, 'N/A': 3 };
+    categorized.sort((a, b) => (priorityOrder[a.dutyStatus] ?? 3) - (priorityOrder[b.dutyStatus] ?? 3));
+
+    setSearchSchedules(categorized);
+    setSearchLoading(false);
+  };
+
+  const handleInformEmployee = async (schedule: TrainingSchedule & { dutyStatus: string }) => {
+    if (!searchModalRecord) return;
+    const empId = searchModalRecord.employee_id || searchModalRecord.employee?.id;
+    setEmailSending(prev => ({ ...prev, [schedule.id]: true }));
+
+    try {
+      const res = await fetch('/api/inform-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: empId,
+          training_type: searchModalRecord.training_type,
+          schedule: {
+            start_date: schedule.start_date,
+            end_date: schedule.end_date,
+            location: schedule.location,
+            dutyStatus: schedule.dutyStatus,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setEmailStatus(prev => ({ ...prev, [schedule.id]: { success: true, message: data.message || 'Email sent!' } }));
+      } else {
+        setEmailStatus(prev => ({ ...prev, [schedule.id]: { success: false, message: data.error || 'Failed to send email' } }));
+      }
+    } catch (error) {
+      setEmailStatus(prev => ({ ...prev, [schedule.id]: { success: false, message: 'Network error' } }));
+    }
+    setEmailSending(prev => ({ ...prev, [schedule.id]: false }));
   };
 
   // Filter records
@@ -315,24 +412,34 @@ export default function TrainingPage() {
                   <td>
                     <StatusBadge status={record.calculated_status} size="sm" />
                   </td>
-                  <td>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.25rem 0.5rem' }}
-                      onClick={() => {
-                        setEditingRecord(record);
-                        setEditRecord({
-                          training_type: record.training_type,
-                          completed_date: record.completed_date,
-                          expiry_date: record.expiry_date,
-                        });
-                        setShowEditModal(true);
-                      }}
-                    >
-                      <Edit2 size={14} />
-                      Edit
-                    </button>
-                  </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.25rem 0.5rem' }}
+                          onClick={() => {
+                            setEditingRecord(record);
+                            setEditRecord({
+                              training_type: record.training_type,
+                              completed_date: record.completed_date,
+                              expiry_date: record.expiry_date,
+                            });
+                            setShowEditModal(true);
+                          }}
+                        >
+                          <Edit2 size={14} />
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.25rem 0.5rem' }}
+                          onClick={() => handleSearchTraining(record)}
+                        >
+                          <Search size={14} />
+                          Search Training
+                        </button>
+                      </div>
+                    </td>
                 </tr>
               ))}
             </tbody>
@@ -478,6 +585,103 @@ export default function TrainingPage() {
             />
           </div>
         </div>
+      </Modal>
+
+      {/* Search Available Training Modal */}
+      <Modal
+        isOpen={showSearchModal}
+        onClose={() => { setShowSearchModal(false); setSearchModalRecord(null); }}
+        title={`Available Training — ${searchModalRecord?.training_type || ''}`}
+        size="lg"
+      >
+        {searchModalRecord && (
+          <div>
+            <div className="text-sm text-muted" style={{ marginBottom: '1rem' }}>
+              Employee: <strong>{searchModalRecord.employee?.name || 'Unknown'}</strong> •
+              Expiry: {new Date(searchModalRecord.expiry_date).toLocaleDateString()}
+            </div>
+
+            {searchLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '2rem' }}>
+                <span className="spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
+                <span className="text-muted">Searching available sessions...</span>
+              </div>
+            ) : searchSchedules.length === 0 ? (
+              <div className="empty-state" style={{ padding: '2rem' }}>
+                <Search className="empty-state-icon" />
+                <div className="empty-state-title">No Training Added Yet</div>
+                <p className="empty-state-description">
+                  No upcoming {searchModalRecord.training_type} sessions found. Add schedules in Settings → Training Schedules.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {searchSchedules.map(schedule => (
+                  <div
+                    key={schedule.id}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: schedule.dutyStatus === 'Off Period ✓' ? 'var(--status-safe-bg)' : 'var(--muted-bg)',
+                      border: `1px solid ${schedule.dutyStatus === 'Off Period ✓' ? 'var(--status-safe)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="font-medium" style={{ fontSize: '0.875rem' }}>
+                          {new Date(schedule.start_date + 'T00:00:00').toLocaleDateString()} — {new Date(schedule.end_date + 'T00:00:00').toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                          <MapPin size={12} />
+                          {schedule.location}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.625rem',
+                          borderRadius: '999px',
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          background: schedule.dutyStatus === 'Off Period ✓' ? 'var(--status-safe)' : schedule.dutyStatus === 'On Period' ? 'var(--status-upcoming)' : 'var(--text-muted)',
+                          color: '#fff',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {schedule.dutyStatus}
+                        </span>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.6875rem', whiteSpace: 'nowrap' }}
+                          disabled={emailSending[schedule.id] || emailStatus[schedule.id]?.success}
+                          onClick={() => handleInformEmployee(schedule)}
+                        >
+                          {emailSending[schedule.id] ? (
+                            <span className="spinner" style={{ width: '0.75rem', height: '0.75rem' }} />
+                          ) : (
+                            <Mail size={12} />
+                          )}
+                          {emailStatus[schedule.id]?.success ? 'Sent ✓' : 'Inform Employee'}
+                        </button>
+                      </div>
+                    </div>
+                    {emailStatus[schedule.id] && (
+                      <div style={{
+                        marginTop: '0.5rem',
+                        padding: '0.375rem 0.75rem',
+                        borderRadius: 'var(--radius)',
+                        fontSize: '0.75rem',
+                        background: emailStatus[schedule.id].success ? 'var(--status-safe-bg)' : 'var(--status-overdue-bg, #fee2e2)',
+                        color: emailStatus[schedule.id].success ? 'var(--status-safe)' : 'var(--status-overdue)',
+                      }}>
+                        {emailStatus[schedule.id].message}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

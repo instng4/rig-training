@@ -34,6 +34,7 @@ const employeeNavItems: NavItem[] = [
 // Admin navigation (rig_admin and super_admin)
 const adminNavItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['rig_admin', 'super_admin'] },
+  { href: '/my-dashboard', label: 'My Dashboard', icon: <UserCircle size={20} />, roles: ['rig_admin', 'super_admin'] },
   { href: '/employees', label: 'Employees', icon: <Users size={20} />, roles: ['rig_admin', 'super_admin'] },
   { href: '/training', label: 'Training Records', icon: <GraduationCap size={20} />, roles: ['rig_admin', 'super_admin'] },
 ];

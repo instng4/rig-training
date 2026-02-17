@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 // Email provider abstraction for flexibility
 export interface EmailProvider {
@@ -7,6 +8,43 @@ export interface EmailProvider {
     subject: string;
     html: string;
   }): Promise<{ success: boolean; error?: string }>;
+}
+
+// SMTP implementation using nodemailer
+class SmtpProvider implements EmailProvider {
+  private transporter: nodemailer.Transporter;
+  private senderEmail: string;
+  private senderName: string;
+
+  constructor() {
+    this.senderEmail = process.env.SMTP_SENDER_EMAIL || 'noreply@example.com';
+    this.senderName = process.env.SMTP_SENDER_NAME || 'RTMS';
+
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '465'),
+      secure: parseInt(process.env.SMTP_PORT || '465') === 465,
+      auth: {
+        user: process.env.SMTP_USERNAME,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    });
+  }
+
+  async send(params: { to: string; subject: string; html: string }) {
+    try {
+      await this.transporter.sendMail({
+        from: `${this.senderName} <${this.senderEmail}>`,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('SMTP send error:', error);
+      return { success: false, error: String(error) };
+    }
+  }
 }
 
 // Resend implementation
@@ -47,13 +85,17 @@ class ConsoleProvider implements EmailProvider {
 
 // Factory function to get the appropriate provider
 export function getEmailProvider(): EmailProvider {
+  // Prefer SMTP if configured
+  if (process.env.SMTP_HOST) {
+    return new SmtpProvider();
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
-  
   if (apiKey) {
     return new ResendProvider(apiKey);
   }
   
-  console.warn('RESEND_API_KEY not configured, using console provider');
+  console.warn('No email provider configured, using console provider');
   return new ConsoleProvider();
 }
 
@@ -76,3 +118,4 @@ export function textToHtml(text: string): string {
     .map(line => `<p>${line || '&nbsp;'}</p>`)
     .join('');
 }
+

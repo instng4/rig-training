@@ -29,10 +29,18 @@ export interface Employee {
 }
 
 export interface DutyPattern {
-  pattern: string; // e.g., "14/14", "21/21", "28/28"
+  start_date: string; // ISO date string of first on-duty day
+  on_duty_days: number; // always 14
+  off_duty_days: number; // always 14
+}
+
+export interface TrainingSchedule {
+  id: string;
+  training_type: string;
   start_date: string;
-  on_duty_days: number;
-  off_duty_days: number;
+  end_date: string;
+  location: string;
+  created_at: string;
 }
 
 export interface TrainingRecord {

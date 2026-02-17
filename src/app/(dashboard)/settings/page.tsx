@@ -5,21 +5,22 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { Save, Plus, Trash2, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Plus, Trash2, Edit2, Settings as SettingsIcon, MapPin, Calendar } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Modal, ConfirmModal } from '@/components/ui/Modal';
-import type { GracePeriodSetting, TrainingTypeConfig, EmailTemplate } from '@/lib/types/database';
+import type { GracePeriodSetting, TrainingTypeConfig, EmailTemplate, TrainingSchedule } from '@/lib/types/database';
 
 export default function SettingsPage() {
   const { userMetadata } = useAuth();
   const userRole = userMetadata.role || 'employee';
-  const [activeTab, setActiveTab] = useState<'grace' | 'training' | 'email'>('grace');
+  const [activeTab, setActiveTab] = useState<'grace' | 'training' | 'email' | 'schedules'>('grace');
   const [loading, setLoading] = useState(true);
   
   // Data
   const [graceSettings, setGraceSettings] = useState<GracePeriodSetting[]>([]);
   const [trainingTypes, setTrainingTypes] = useState<TrainingTypeConfig[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [schedules, setSchedules] = useState<TrainingSchedule[]>([]);
   
   // Edit states
   const [editedGrace, setEditedGrace] = useState<Record<string, number>>({});
@@ -30,6 +31,15 @@ export default function SettingsPage() {
   const [newType, setNewType] = useState({ name: '', validity_months: 12 });
   const [deleteTypeId, setDeleteTypeId] = useState<string | null>(null);
 
+  // Training schedules modal states
+  const [showAddSchedule, setShowAddSchedule] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({ training_type: '', start_date: '', end_date: '', location: '' });
+  const [showEditSchedule, setShowEditSchedule] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<TrainingSchedule | null>(null);
+  const [editScheduleForm, setEditScheduleForm] = useState({ training_type: '', start_date: '', end_date: '', location: '' });
+  const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -38,10 +48,11 @@ export default function SettingsPage() {
     const supabase = createClient();
     
     try {
-      const [graceRes, typesRes, emailRes] = await Promise.all([
+      const [graceRes, typesRes, emailRes, schedulesRes] = await Promise.all([
         supabase.from('grace_period_settings').select('*').order('training_type'),
         supabase.from('training_types').select('*').order('name'),
         supabase.from('email_templates').select('*'),
+        supabase.from('training_schedules').select('*').order('start_date', { ascending: true }),
       ]);
 
       if (graceRes.data) {
@@ -52,6 +63,7 @@ export default function SettingsPage() {
       }
       if (typesRes.data) setTrainingTypes(typesRes.data);
       if (emailRes.data) setEmailTemplates(emailRes.data);
+      if (schedulesRes.data) setSchedules(schedulesRes.data);
     } catch (error) {
       console.error('Error fetching settings:', error);
     } finally {
@@ -125,6 +137,62 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
+  // Training Schedule handlers
+  const handleAddSchedule = async () => {
+    if (!newSchedule.training_type || !newSchedule.start_date || !newSchedule.end_date || !newSchedule.location) return;
+    setSavingSchedule(true);
+    const supabase = createClient();
+
+    const { error } = await supabase.from('training_schedules').insert({
+      training_type: newSchedule.training_type,
+      start_date: newSchedule.start_date,
+      end_date: newSchedule.end_date,
+      location: newSchedule.location,
+    });
+
+    if (error) {
+      console.error('Error adding schedule:', error);
+    } else {
+      setShowAddSchedule(false);
+      setNewSchedule({ training_type: '', start_date: '', end_date: '', location: '' });
+      fetchData();
+    }
+    setSavingSchedule(false);
+  };
+
+  const handleEditSchedule = async () => {
+    if (!editingSchedule || !editScheduleForm.training_type || !editScheduleForm.start_date || !editScheduleForm.end_date || !editScheduleForm.location) return;
+    setSavingSchedule(true);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from('training_schedules')
+      .update({
+        training_type: editScheduleForm.training_type,
+        start_date: editScheduleForm.start_date,
+        end_date: editScheduleForm.end_date,
+        location: editScheduleForm.location,
+      })
+      .eq('id', editingSchedule.id);
+
+    if (error) {
+      console.error('Error updating schedule:', error);
+    } else {
+      setShowEditSchedule(false);
+      setEditingSchedule(null);
+      fetchData();
+    }
+    setSavingSchedule(false);
+  };
+
+  const handleDeleteSchedule = async () => {
+    if (!deleteScheduleId) return;
+    const supabase = createClient();
+    await supabase.from('training_schedules').delete().eq('id', deleteScheduleId);
+    setDeleteScheduleId(null);
+    fetchData();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
@@ -172,6 +240,12 @@ export default function SettingsPage() {
           onClick={() => setActiveTab('grace')}
         >
           Grace Periods
+        </button>
+        <button
+          className={`btn ${activeTab === 'schedules' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('schedules')}
+        >
+          Training Schedules
         </button>
         {userRole === 'super_admin' && (
           <>
@@ -342,6 +416,87 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Training Schedules Tab */}
+      {activeTab === 'schedules' && (
+        <div className="card">
+          <div className="card-header">
+            <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Training Schedules</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddSchedule(true)}>
+              <Plus size={16} />
+              Add Schedule
+            </button>
+          </div>
+          <p className="text-sm text-muted mb-4">
+            Manage available training sessions. These are used to suggest training dates for employees with expired certifications.
+          </p>
+          {schedules.length === 0 ? (
+            <div className="empty-state">
+              <Calendar className="empty-state-icon" />
+              <div className="empty-state-title">No Training Schedules</div>
+              <p className="empty-state-description">
+                Add training schedules to help match employees with available sessions.
+              </p>
+            </div>
+          ) : (
+            <div className="table-container" style={{ border: 'none' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Training Type</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Location</th>
+                    <th style={{ width: '120px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {schedules.map(schedule => (
+                    <tr key={schedule.id}>
+                      <td className="font-medium">{schedule.training_type}</td>
+                      <td>{new Date(schedule.start_date + 'T00:00:00').toLocaleDateString()}</td>
+                      <td>{new Date(schedule.end_date + 'T00:00:00').toLocaleDateString()}</td>
+                      <td>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <MapPin size={12} />
+                          {schedule.location}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.25rem 0.5rem' }}
+                            onClick={() => {
+                              setEditingSchedule(schedule);
+                              setEditScheduleForm({
+                                training_type: schedule.training_type,
+                                start_date: schedule.start_date,
+                                end_date: schedule.end_date,
+                                location: schedule.location,
+                              });
+                              setShowEditSchedule(true);
+                            }}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '0.25rem 0.5rem' }}
+                            onClick={() => setDeleteScheduleId(schedule.id)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Add Training Type Modal */}
       <Modal
         isOpen={showAddType}
@@ -388,13 +543,158 @@ export default function SettingsPage() {
         </div>
       </Modal>
 
-      {/* Delete Confirmation */}
+      {/* Delete Type Confirmation */}
       <ConfirmModal
         isOpen={!!deleteTypeId}
         onClose={() => setDeleteTypeId(null)}
         onConfirm={handleDeleteType}
         title="Delete Training Type"
         message="Are you sure you want to delete this training type? This will not delete existing training records."
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
+
+      {/* Add Training Schedule Modal */}
+      <Modal
+        isOpen={showAddSchedule}
+        onClose={() => setShowAddSchedule(false)}
+        title="Add Training Schedule"
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowAddSchedule(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddSchedule}
+              disabled={savingSchedule || !newSchedule.training_type || !newSchedule.start_date || !newSchedule.end_date || !newSchedule.location}
+            >
+              {savingSchedule && <span className="spinner" />}
+              Add Schedule
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="input-group">
+            <label className="input-label">Training Type *</label>
+            <select
+              className="input select"
+              value={newSchedule.training_type}
+              onChange={e => setNewSchedule({ ...newSchedule, training_type: e.target.value })}
+            >
+              <option value="">Select Training Type</option>
+              {trainingTypes.map(type => (
+                <option key={type.id} value={type.name}>{type.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="input-group">
+            <label className="input-label">Start Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={newSchedule.start_date}
+              onChange={e => setNewSchedule({ ...newSchedule, start_date: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">End Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={newSchedule.end_date}
+              onChange={e => setNewSchedule({ ...newSchedule, end_date: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Location *</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g., Training Center A, São Paulo"
+              value={newSchedule.location}
+              onChange={e => setNewSchedule({ ...newSchedule, location: e.target.value })}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Training Schedule Modal */}
+      <Modal
+        isOpen={showEditSchedule}
+        onClose={() => { setShowEditSchedule(false); setEditingSchedule(null); }}
+        title="Edit Training Schedule"
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => { setShowEditSchedule(false); setEditingSchedule(null); }}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleEditSchedule}
+              disabled={savingSchedule || !editScheduleForm.training_type || !editScheduleForm.start_date || !editScheduleForm.end_date || !editScheduleForm.location}
+            >
+              {savingSchedule && <span className="spinner" />}
+              Save Changes
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="input-group">
+            <label className="input-label">Training Type *</label>
+            <select
+              className="input select"
+              value={editScheduleForm.training_type}
+              onChange={e => setEditScheduleForm({ ...editScheduleForm, training_type: e.target.value })}
+            >
+              <option value="">Select Training Type</option>
+              {trainingTypes.map(type => (
+                <option key={type.id} value={type.name}>{type.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="input-group">
+            <label className="input-label">Start Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={editScheduleForm.start_date}
+              onChange={e => setEditScheduleForm({ ...editScheduleForm, start_date: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">End Date *</label>
+            <input
+              type="date"
+              className="input"
+              value={editScheduleForm.end_date}
+              onChange={e => setEditScheduleForm({ ...editScheduleForm, end_date: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Location *</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g., Training Center A, São Paulo"
+              value={editScheduleForm.location}
+              onChange={e => setEditScheduleForm({ ...editScheduleForm, location: e.target.value })}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Schedule Confirmation */}
+      <ConfirmModal
+        isOpen={!!deleteScheduleId}
+        onClose={() => setDeleteScheduleId(null)}
+        onConfirm={handleDeleteSchedule}
+        title="Delete Training Schedule"
+        message="Are you sure you want to delete this training schedule?"
         confirmText="Delete"
         confirmVariant="danger"
       />

@@ -7,11 +7,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
-import { Save, Edit2, X, Plus, GraduationCap, User, UserPlus } from 'lucide-react';
+import { Save, Edit2, X, Plus, GraduationCap, User, UserPlus, Calendar } from 'lucide-react';
+import { generateDutyPreview } from '@/lib/utils/duty-utils';
 import { Avatar, AvatarUpload } from '@/components/ui/Avatar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
-import type { Employee, Rig, TrainingTypeConfig, GracePeriodSetting } from '@/lib/types/database';
+import type { Employee, Rig, TrainingTypeConfig, GracePeriodSetting, DutyPattern } from '@/lib/types/database';
 import { enrichTrainingRecords } from '@/lib/utils/training-status';
 
 export default function MyDashboardPage() {
@@ -63,6 +64,11 @@ export default function MyDashboardPage() {
   });
   const [savingEditTraining, setSavingEditTraining] = useState(false);
 
+  // Duty pattern state
+  const [dutyStartDate, setDutyStartDate] = useState('');
+  const [savingDuty, setSavingDuty] = useState(false);
+  const [dutyPreview, setDutyPreview] = useState<{ start: string; end: string; type: 'on' | 'off' }[]>([]);
+
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
@@ -103,6 +109,12 @@ export default function MyDashboardPage() {
         } else {
           setEmployee(empData);
           setEditForm(empData);
+
+          // Load existing duty pattern
+          if (empData.duty_pattern?.start_date) {
+            setDutyStartDate(empData.duty_pattern.start_date);
+            setDutyPreview(generateDutyPreview(empData.duty_pattern.start_date, 3));
+          }
 
           // Fetch training records
           const { data: trainingData } = await supabase
@@ -329,6 +341,31 @@ export default function MyDashboardPage() {
     setSavingEditTraining(false);
   };
 
+  const handleSaveDutyPattern = async () => {
+    if (!employee || !dutyStartDate) return;
+    setSavingDuty(true);
+
+    const dutyPattern: DutyPattern = {
+      start_date: dutyStartDate,
+      on_duty_days: 14,
+      off_duty_days: 14,
+    };
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('employees')
+      .update({ duty_pattern: dutyPattern })
+      .eq('id', employee.id);
+
+    if (error) {
+      console.error('Error saving duty pattern:', error);
+    } else {
+      setEmployee({ ...employee, duty_pattern: dutyPattern });
+      setDutyPreview(generateDutyPreview(dutyStartDate, 3));
+    }
+    setSavingDuty(false);
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
@@ -510,6 +547,104 @@ export default function MyDashboardPage() {
               <Edit2 size={18} />
               Edit Profile
             </button>
+          )}
+        </div>
+      </div>
+
+      {/* Duty Pattern Section */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div className="card-header">
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Calendar size={18} />
+            Duty Pattern (14/14 Rotation)
+          </h3>
+        </div>
+
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+          {/* Date Picker */}
+          <div style={{ flex: '0 0 auto' }}>
+            <div className="input-group" style={{ marginBottom: '1rem' }}>
+              <label className="input-label">First On-Duty Start Date</label>
+              <p className="text-xs text-muted" style={{ marginBottom: '0.5rem' }}>Select the first day of your 14-day on-duty period</p>
+              <input
+                type="date"
+                className="input"
+                value={dutyStartDate}
+                min={(() => {
+                  const now = new Date();
+                  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                })()}
+                max={(() => {
+                  const now = new Date();
+                  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+                  return nextMonth.toISOString().split('T')[0];
+                })()}
+                onChange={e => {
+                  setDutyStartDate(e.target.value);
+                  if (e.target.value) {
+                    setDutyPreview(generateDutyPreview(e.target.value, 3));
+                  } else {
+                    setDutyPreview([]);
+                  }
+                }}
+              />
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleSaveDutyPattern}
+              disabled={savingDuty || !dutyStartDate}
+            >
+              {savingDuty ? <span className="spinner" /> : <Save size={16} />}
+              Save Duty Pattern
+            </button>
+            {employee.duty_pattern?.start_date && (
+              <div className="text-xs text-muted" style={{ marginTop: '0.5rem' }}>
+                Current pattern starts: {new Date(employee.duty_pattern.start_date + 'T00:00:00').toLocaleDateString()}
+              </div>
+            )}
+          </div>
+
+          {/* Preview */}
+          {dutyPreview.length > 0 && (
+            <div style={{ flex: 1, minWidth: '280px' }}>
+              <label className="input-label" style={{ marginBottom: '0.5rem' }}>Upcoming Rotation Preview</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                {dutyPreview.map((block, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 'var(--radius)',
+                      background: block.type === 'on' ? 'var(--status-safe-bg)' : 'var(--muted-bg)',
+                      border: `1px solid ${block.type === 'on' ? 'var(--status-safe)' : 'var(--border)'}`,
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '0.125rem 0.5rem',
+                      borderRadius: '999px',
+                      fontSize: '0.6875rem',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      background: block.type === 'on' ? 'var(--status-safe)' : 'var(--text-muted)',
+                      color: '#fff',
+                      minWidth: '36px',
+                      textAlign: 'center',
+                    }}>
+                      {block.type === 'on' ? 'ON' : 'OFF'}
+                    </span>
+                    <span>
+                      {new Date(block.start + 'T00:00:00').toLocaleDateString()} — {new Date(block.end + 'T00:00:00').toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
