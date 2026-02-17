@@ -274,7 +274,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="dashboard-grid">
         {/* Training Needs Attention */}
         <div className="card" style={{ gridColumn: recentTraining.length === 0 ? 'span 2' : undefined }}>
           <div className="card-header">
