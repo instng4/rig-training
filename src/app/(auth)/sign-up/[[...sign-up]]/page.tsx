@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { Mail, Lock, Eye, EyeOff, Shield, Loader2, User } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Shield, Loader2, User, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +19,21 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // OTP States
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(60);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (success && resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [success, resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +56,37 @@ export default function SignUpPage() {
       setLoading(false);
     } else {
       setSuccess(true);
+      setResendCooldown(60);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 8) {
+      setError('Please enter a valid 8-digit code');
+      return;
+    }
+    setError(null);
+    setOtpLoading(true);
+
+    const { error } = await useAuth().verifyOtp(email, otp);
+
+    if (error) {
+      setError(error.message);
+      setOtpLoading(false);
+    } else {
+      router.push('/dashboard');
+      router.refresh();
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    setResendCooldown(60);
+    const { error } = await useAuth().resendSignUpOtp(email);
+    if (error) {
+      setError(error.message);
     }
   };
 
@@ -68,29 +114,96 @@ export default function SignUpPage() {
           <div style={{
             width: '64px',
             height: '64px',
-            background: 'var(--success-100)',
+            background: 'var(--primary-100)',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 1.5rem',
           }}>
-            <Mail size={32} color="var(--success-600)" />
+            <ShieldCheck size={32} color="var(--primary-600)" />
           </div>
           <h1 style={{
             fontSize: '1.5rem',
             fontWeight: '600',
             marginBottom: '0.75rem',
             color: 'var(--foreground)',
-          }}>Check your email</h1>
+          }}>Verify your email</h1>
           <p style={{
             color: 'var(--muted-foreground)',
             marginBottom: '2rem',
           }}>
-            We&apos;ve sent a confirmation link to <strong>{email}</strong>. 
-            Please click the link to verify your account.
+            We&apos;ve sent an 8-digit code to <strong>{email}</strong>. 
+            Please enter it below.<br/>
+            <span style={{ fontSize: '0.8rem' }}>(Check your spam folder if you don&apos;t see it)</span>
           </p>
-          <Link href="/sign-in" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+
+          {error && (
+            <div style={{
+              background: 'var(--danger-50)',
+              border: '1px solid var(--danger-200)',
+              color: 'var(--danger-700)',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              marginBottom: '1.5rem',
+              fontSize: '0.875rem',
+            }}>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleVerifyOtp} style={{ marginBottom: '2rem' }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={8}
+              placeholder="00000000"
+              style={{
+                width: '100%',
+                textAlign: 'center',
+                fontSize: '1.5rem',
+                letterSpacing: '0.5em',
+                padding: '0.75rem',
+                marginBottom: '1rem',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)',
+              }}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={otpLoading || otp.length !== 8}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {otpLoading ? <Loader2 size={18} className="spinner" /> : null}
+              {otpLoading ? 'Verifying...' : 'Verify Email'}
+            </button>
+          </form>
+
+          <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', marginBottom: '1.5rem' }}>
+            Didn&apos;t receive the code?{' '}
+            <button
+              onClick={handleResendOtp}
+              disabled={resendCooldown > 0}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: resendCooldown > 0 ? 'var(--muted-foreground)' : 'var(--primary)',
+                fontWeight: '500',
+                cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
+                padding: 0,
+              }}
+            >
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+            </button>
+          </div>
+
+          <Link href="/sign-in" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
             Back to Sign In
           </Link>
         </div>

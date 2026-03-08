@@ -23,6 +23,8 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, metadata?: Partial<UserMetadata>) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
+  resendSignUpOtp: (email: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -156,6 +158,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error as Error | null };
   }, [supabase.auth]);
 
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+    return { error: error as Error | null };
+  }, [supabase.auth]);
+
+  const resendSignUpOtp = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    return { error: error as Error | null };
+  }, [supabase.auth]);
+
   const value = {
     user,
     session,
@@ -167,6 +186,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUpWithEmail,
     resetPassword,
     updatePassword,
+    verifyOtp,
+    resendSignUpOtp,
   };
 
   return (

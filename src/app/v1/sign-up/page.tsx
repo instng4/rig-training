@@ -1,16 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { Eye, EyeOff, Loader2, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default function V1SignUpPage() {
   const router = useRouter();
-  const { signUpWithEmail } = useAuth();
+  const { signUpWithEmail, verifyOtp, resendSignUpOtp } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -19,6 +19,21 @@ export default function V1SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  
+  // OTP States
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(60);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (success && resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [success, resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,21 +56,98 @@ export default function V1SignUpPage() {
       setLoading(false);
     } else {
       setSuccess(true);
+      setResendCooldown(60);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 8) {
+      setError('Please enter a valid 8-digit code');
+      return;
+    }
+    setError(null);
+    setOtpLoading(true);
+
+    const { error } = await verifyOtp(email, otp);
+
+    if (error) {
+      setError(error.message);
+      setOtpLoading(false);
+    } else {
+      router.push('/dashboard');
+      router.refresh();
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    setResendCooldown(60);
+    const { error } = await resendSignUpOtp(email);
+    if (error) {
+      setError(error.message);
     }
   };
 
   if (success) {
     return (
-      <div className="w-full max-w-lg overflow-hidden animate-blur-in bg-white/80 border-white/20 border rounded-3xl shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] backdrop-blur-xl p-8 text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-fade-up delay-100">
-          <Mail size={32} className="text-green-600" />
+      <div className="w-full max-w-lg overflow-hidden animate-blur-in bg-white/80 border-white/20 border rounded-3xl shadow-[0px_0px_0px_1px_rgba(0,0,0,0.06),0px_1px_1px_-0.5px_rgba(0,0,0,0.06),0px_3px_3px_-1.5px_rgba(0,0,0,0.06),_0px_6px_6px_-3px_rgba(0,0,0,0.06),0px_12px_12px_-6px_rgba(0,0,0,0.06),0px_24px_24px_-12px_rgba(0,0,0,0.06)] backdrop-blur-xl p-8 text-center m-auto mt-20">
+        <div className="w-16 h-16 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-fade-up delay-100">
+          <ShieldCheck size={32} className="text-violet-600" />
         </div>
-        <h1 className="text-2xl font-space-grotesk text-slate-900 mb-3 animate-fade-up delay-200">Check your email</h1>
-        <p className="text-slate-600 font-geist mb-8 animate-fade-up delay-300">
-          We&apos;ve sent a confirmation link to <strong>{email}</strong>.<br />
-          Please click the link to verify your account.
+        <h1 className="text-2xl font-space-grotesk text-slate-900 mb-3 animate-fade-up delay-200">Verify your email</h1>
+        <p className="text-slate-600 font-geist mb-6 animate-fade-up delay-300">
+          We&apos;ve sent an 8-digit code to <strong>{email}</strong>.<br />
+          Please enter it below to confirm your account.<br />
+          <span className="text-sm text-slate-500">(Check your spam folder if you don&apos;t see it)</span>
         </p>
-        <Link href="/v1/sign-in" className="w-full block hover:from-violet-700 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-200 animate-scale-up delay-400 font-medium text-white font-geist bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl py-3 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]">
+
+        {error && (
+          <div className="animate-fade-up mt-4 mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-geist">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleVerifyOtp} className="animate-fade-up delay-400 max-w-xs mx-auto space-y-4">
+          <div>
+            <label className="sr-only font-geist" htmlFor="otp">Verification Code</label>
+            <input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={8}
+              placeholder="00000000"
+              className="w-full text-center text-2xl tracking-widest rounded-xl py-3 px-4 border border-slate-200 bg-white/50 placeholder-slate-300 text-slate-900 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={otpLoading || otp.length !== 8}
+            className="w-full hover:from-violet-700 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-200 font-medium text-white font-geist bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl py-3 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {otpLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+            {otpLoading ? 'Verifying...' : 'Verify Email'}
+          </button>
+        </form>
+
+        <div className="mt-8 animate-fade-up delay-500 font-geist text-sm text-slate-500">
+          Didn&apos;t receive the code?{' '}
+          <button
+            onClick={handleResendOtp}
+            disabled={resendCooldown > 0}
+            className="text-violet-600 hover:text-violet-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-violet-600 transition-colors"
+          >
+            {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+          </button>
+        </div>
+
+        <Link href="/v1/sign-in" className="mt-6 inline-block text-sm font-geist text-slate-500 hover:text-slate-700 animate-fade-up delay-600 transition-colors">
           Back to Sign In
         </Link>
       </div>
